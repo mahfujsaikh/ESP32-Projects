@@ -1,173 +1,211 @@
-# Sperm Run Arcade — ESP32-S3 + ST7789 TFT
+# Sperm Run Arcade 🎮
 
-An experimental **ESP32-S3 arcade game** designed for a physical TFT display and push-buttons. This is a standalone hobby embedded project with its own local display configuration.
+A small **ESP32-S3 arcade game** built for an **ST7789 TFT display** and five physical buttons, using **ESP-IDF** and **LovyanGFX**. The game is a side-scrolling obstacle-dodging challenge: guide an animated swimmer through moving gaps, survive collisions, and beat your best score.
 
-> [!IMPORTANT]
-> **Documentation / partial-source snapshot.** The files supplied for this upload contain the ESP-IDF root `CMakeLists.txt`, the LovyanGFX board configuration, and original setup notes. **They do not include the gameplay implementation (`main/main.cpp`) or the LovyanGFX component source. This folder is not yet a complete, buildable game.** The README describes the recovered configuration faithfully, rather than inventing missing code or gameplay behavior.
+This repository holds its **own copy** of the display configuration (`main/LGFX_ESP32S3.h`). No code, headers, or include paths from any other personal firmware project are needed.
 
-## Hardware at a glance
+> **Build status:** The complete supplied **gameplay source and ESP-IDF CMake files** are included here. LovyanGFX itself is an **external dependency** and is **not vendored** in this repository. Compilation and testing on physical hardware have **not** been verified for this GitHub snapshot.
 
-| Item | Recorded configuration |
+## Gameplay
+
+The game has four states: **TITLE → PLAYING ↔ PAUSED → GAME OVER**.
+
+1. Press **MENU** on the title screen to start.
+2. Hold **UP** or **DOWN** to steer your swimmer vertically. Input is smoothed rather than instantly teleporting the player.
+3. Avoid green pipe-like obstacles by moving through the gap. There are **three obstacles** managed at a time.
+4. Each successfully passed obstacle adds **1 point**.
+5. Touching a pipe or the upper/lower boundary costs **1 life**. You begin with **3 lives**. After a nonfatal collision, the swimmer is reset to the centre.
+6. Press **PAUSE** to pause or resume. Press **MENU** on the game-over screen to restart.
+
+### Special features already present in the source
+
+| Feature | Code behavior |
 | --- | --- |
-| Controller | ESP32-S3 (exact development-board model not specified) |
-| Display | ST7789 SPI TFT, configured for **240 × 320** pixels |
-| Display library | [LovyanGFX](https://github.com/lovyan03/LovyanGFX) |
-| Firmware system | ESP-IDF; **6.0.2** specified in the original notes |
-| Display SPI peripheral | `SPI2_HOST`, SPI mode 0 |
-| Configured SPI clock | 40 MHz write / 16 MHz read |
-| Input method | Five push-buttons, each connecting a GPIO to GND |
+| **Animated player** | A cyan circular swimmer with a sine-wave animated tail |
+| **BOOST button** | While held, obstacle scrolling speed becomes **170 px/s**; this is a *faster challenge*, not an invincibility or extra-life button |
+| **Difficulty progression** | Normal obstacle scrolling starts at **105 px/s** and rises with score, capped at **133 px/s** |
+| **Random gaps** | Recycled pipes receive a pseudo-random vertical gap position |
+| **3-life system** | Obstacles and screen boundaries remove a life; game ends when lives reach zero |
+| **On-screen HUD** | Shows current SCORE, BEST and LIVES |
+| **Best score** | Tracked **in RAM only** during the running firmware session; it does **not** survive a reset or power cycle |
+| **Pause / restart** | Dedicated physical controls, with edge detection for PAUSE and MENU |
+| **Graphics** | ST7789 colour TFT, simple star/dot background, outlines, and game-state screens |
 
-The ST7789 panel and SPI settings above come directly from `main/LGFX_ESP32S3.h`. The control assignments come from the supplied `README.txt`, **not** from source-code inspection.
+**Not implemented in this version:** sound, saved highscores in flash, multiple selectable levels, Wi-Fi leaderboard, power-up inventory, or menu settings. Button edge detection exists, but no time-based debouncing is implemented.
 
-## GPIO / pin configuration
+## Parts and hardware configuration
 
-### ST7789 display
+| Item | Specification |
+| --- | --- |
+| Microcontroller | **ESP32-S3**; exact board variant not recorded |
+| TFT module | **ST7789**, configured for a physical **240 × 320** panel |
+| Gameplay coordinates | **320 × 240 landscape**, set with `gfx.setRotation(1)` |
+| Display driver | [LovyanGFX](https://github.com/lovyan03/LovyanGFX) |
+| Firmware framework | ESP-IDF; **v6.0.2** specified in original project notes |
+| TFT interface | SPI2 (`SPI2_HOST`), mode 0 |
+| SPI clock settings | 40 MHz write, 16 MHz read |
+| Input | 5 momentary buttons, **GPIO to GND** with internal pull-ups |
+| Display backlight & supply | Not recorded; confirm your specific TFT module's requirements |
 
-| Display pin / signal | ESP32-S3 GPIO | Purpose |
+### TFT display wiring
+
+| TFT signal | ESP32-S3 GPIO | Usage |
+| --- | --- | --- |
+| SCLK / SCK | **12** | SPI clock |
+| MOSI / SDA / DIN | **11** | SPI data to TFT |
+| MISO / SDO | **13** | Configured SPI data from TFT, if module provides it |
+| DC / A0 | **9** | Data / command |
+| CS | **10** | Chip select |
+| RST / RESET | **46** | Display reset; **see warning below** |
+| GND | GND | Shared ground |
+| VCC | **Module dependent** | Verify supply voltage and level shifting |
+| BL / LED | **Not specified** | Check TFT backlight pin / board circuit |
+
+> **GPIO46 caution:** On the ESP32-S3, GPIO46 is a strapping pin with boot-related constraints. The saved header uses it for TFT RESET because that was the original configuration. Do not assume this is a universally safe wiring choice: check your particular ESP32-S3 board, display module, and boot circuitry. If the display must use a different reset pin, change **both** the physical connection and `cfg.pin_rst`.
+
+### Button wiring
+
+| Button | GPIO | Connection |
 | --- | ---: | --- |
-| `SCLK` / `SCK` | **GPIO12** | SPI clock |
-| `MOSI` / `SDA` / `DIN` | **GPIO11** | SPI data out to display |
-| `MISO` / `SDO` | **GPIO13** | Configured SPI read line, if the panel exposes it |
-| `DC` / `A0` | **GPIO9** | Data/command selection |
-| `CS` | **GPIO10** | Chip select |
-| `RST` / `RESET` | **GPIO46** | Display reset in the supplied config |
-| `VCC` | **Not specified** | Check your exact TFT module voltage requirements |
-| `GND` | **GND** | Common electrical ground |
-| `BL` / `LED` | **Not specified** | Backlight wiring/control depends on the module |
+| **UP** | **1** | GPIO1 → push-button → GND |
+| **DOWN** | **2** | GPIO2 → push-button → GND |
+| **BOOST** | **8** | GPIO8 → push-button → GND |
+| **PAUSE** | **14** | GPIO14 → push-button → GND |
+| **MENU** | **18** | GPIO18 → push-button → GND |
 
-**Important:** GPIO46 is an **ESP32-S3 strapping pin** and affects boot behavior. The stored config assigns it to display RESET, but that connection must be reviewed for your specific board/panel before rebuilding. If a redesigned build needs a different safe reset GPIO, change both the wiring and `cfg.pin_rst` in the header. Do not assume GPIO46 is universally available or that every TFT can be wired directly to it.
+The code explicitly configures these five pins with `GPIO_MODE_INPUT` and `GPIO_PULLUP_ENABLE`. A pressed button therefore reads **LOW (0)**. The code does not use external interrupt handling. Verify pin availability on your specific ESP32-S3 board and do **not** apply 5 V directly to GPIOs.
 
-References: [Espressif ESP32-S3 hardware design guidelines](https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32s3/schematic-checklist.html) and [ESP-IDF GPIO documentation](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/peripherals/gpio.html).
+### Wiring reference
 
-### Push-button controls
+```text
+ESP32-S3                      ST7789
+---------                     -------------
+GPIO12  --------------------> SCLK
+GPIO11  --------------------> MOSI / SDA
+GPIO13  <-------------------- MISO / SDO (if present)
+GPIO9   --------------------> DC
+GPIO10  --------------------> CS
+GPIO46  --------------------> RST (strapping-pin caution)
+GND     --------------------- GND
+supply  --------------------- VCC (check TFT module)
+                              BL  (unspecified)
 
-| Button label | ESP32-S3 GPIO | Physical connection |
-| --- | ---: | --- |
-| **UP** | **GPIO1** | GPIO1 ↔ momentary button ↔ GND |
-| **DOWN** | **GPIO2** | GPIO2 ↔ momentary button ↔ GND |
-| **BOOST** | **GPIO8** | GPIO8 ↔ momentary button ↔ GND |
-| **PAUSE** | **GPIO14** | GPIO14 ↔ momentary button ↔ GND |
-| **MENU** | **GPIO18** | GPIO18 ↔ momentary button ↔ GND |
+GPIO1   --- [ UP ] ---------- GND
+GPIO2   --- [ DOWN ] -------- GND
+GPIO8   --- [ BOOST ] ------- GND
+GPIO14  --- [ PAUSE ] ------- GND
+GPIO18  --- [ MENU ] -------- GND
+```
 
-Every button is wired **between the named GPIO and GND**, not to 3.3 V. This is an intended active-low input arrangement: when implementing/restoring the firmware, enable suitable pull-ups and handle button debounce. The missing `main.cpp` means the exact input-handling code and whether the named actions function in gameplay cannot yet be verified.
+An earlier hardware layout also assigned GPIO4/5/6 to microphone connections and GPIO15/16/17 to speaker connections. These do not form part of this game's code; check your actual wiring before reusing any pins.
 
-### Quick wiring sketch
+## Source tree
 
-    ESP32-S3                   ST7789 TFT
-    --------                   ----------
-    GPIO12  -----------------> SCLK
-    GPIO11  -----------------> MOSI/SDA
-    GPIO13  <----------------- MISO/SDO (only if present)
-    GPIO9   -----------------> DC/A0
-    GPIO10  -----------------> CS
-    GPIO46  -----------------> RST  (BOOT-STRAP CAUTION)
-    GND     ------------------ GND
-    Supply  ------------------ VCC  (verify module requirements)
-                               BL   (not recorded)
+```text
+Sperm-Run-Arcade/
+├── CMakeLists.txt                     # ESP-IDF project entry
+├── .gitignore
+├── README.md
+├── README.txt                         # Short setup / wiring notes
+└── main/
+    ├── CMakeLists.txt                 # Main component and required dependencies
+    ├── main.cpp                       # Complete supplied gameplay source
+    └── LGFX_ESP32S3.h                # Standalone custom ST7789 display config
+```
 
-    GPIO1  ----[ UP button    ]---- GND
-    GPIO2  ----[ DOWN button  ]---- GND
-    GPIO8  ----[ BOOST button ]---- GND
-    GPIO14 ----[ PAUSE button ]---- GND
-    GPIO18 ----[ MENU button  ]---- GND
+**LovyanGFX is not included** in the tree shown above. Install it as an ESP-IDF component before building.
 
-The earlier hardware configuration reserved **GPIO4/5/6** for microphone wiring and **GPIO15/16/17** for speaker wiring. Those pins are not used by this game's documented display or buttons; check for conflicts before assigning them to other devices.
+### Local display-header include
 
-**Electrical checks:** Share ground between the ESP32-S3 and TFT; verify the TFT module's power and logic levels, any onboard regulator/level shifters, the backlight connection, and the actual exposed GPIO pins. Do not connect GPIO inputs directly to 5 V.
-
-## Interesting design points
-
-- **Dedicated physical controls:** five labelled controls including separate BOOST, PAUSE and MENU inputs in the *wiring plan*. Their exact behavior must be confirmed against the missing game code.
-- **Colour TFT graphics stack:** an ST7789 display driven through the LovyanGFX abstraction rather than a text-only display.
-- **High-speed configured SPI bus:** `SPI2_HOST` with 40 MHz write clock, SPI mode 0, and DMA configured as `SPI_DMA_CH_AUTO`.
-- **Standalone ESP-IDF firmware layout:** a dedicated project that can be flashed independently of other firmware.
-- **Self-contained display definition:** `main/LGFX_ESP32S3.h` contains the `LGFX` class and all saved display pin, SPI bus, and 240 × 320 panel settings; no header is fetched from any other personal project.
-
-No claims are made here about levels, obstacles, scores, graphics effects, collision logic, or saved high scores: **those details cannot be verified without `main.cpp`.**
-
-## Files in this repository snapshot
-
-    Sperm-Run-Arcade/
-    ├── README.md                        # This guide
-    ├── README.txt                       # Original supplied setup notes
-    ├── CMakeLists.txt                    # Original ESP-IDF project entry
-    ├── .gitignore
-    └── main/
-        ├── CMakeLists.txt                # ESP-IDF main-component declaration
-        └── LGFX_ESP32S3.h               # Standalone LovyanGFX ST7789 pin setup
-
-**Still needed for a functioning clone:**
-
-- `main/main.cpp` — the actual game loop, input handling, rendering and gameplay;
-- `components/LovyanGFX/` or an equivalent correctly configured ESP-IDF LovyanGFX dependency.
-
-Some platforms or versions might need additional ESP-IDF configuration or component metadata; that cannot be determined from the three supplied files.
-
-## Standalone display-header usage
-
-This project keeps its **own copy** of the TFT configuration at `main/LGFX_ESP32S3.h`, beside the planned game source file. It has no source-level or folder dependency on any other personal firmware project.
-
-When restoring `main/main.cpp`, the include should be:
+The game source includes the display config directly, with **no old nested board-directory reference**:
 
 ```cpp
 #include "LGFX_ESP32S3.h"
 
-// Example display instance declaration (integrate with your actual game code):
-LGFX tft;
+static LGFX gfx;
 ```
 
-Do **not** use an include path pointing through a different project directory. The old nested directory is deleted from the current repository tree. If your own local copy of `main.cpp` still uses that old include, change that line **in the game's source only** before compiling. This GitHub update cannot modify the missing local game source.
+The component file uses:
 
-## How to recreate the original project
+```cmake
+idf_component_register(
+    SRCS "main.cpp"
+    INCLUDE_DIRS "."
+    REQUIRES LovyanGFX esp_driver_gpio esp_timer
+)
+```
 
-1. Use an **ESP32-S3** and an **ST7789 240 × 320 TFT** compatible with the saved LovyanGFX settings. Verify the exact board and display module before wiring.
-2. Follow the **GPIO tables and wiring sketch** above. Connect each button between its GPIO and GND.
-3. Install and activate an ESP-IDF environment. The original project notes specify **ESP-IDF 6.0.2**; compatibility has not been independently build-tested.
-4. Restore the missing game source at `main/main.cpp`. The display header is already in this game's own `main/LGFX_ESP32S3.h`, and ESP-IDF component registration is already provided in `main/CMakeLists.txt`. In the restored `main.cpp`, include the header with `#include "LGFX_ESP32S3.h"`.
-5. Install the correct [LovyanGFX](https://github.com/lovyan03/LovyanGFX) ESP-IDF component in `components/LovyanGFX/` as directed in the original notes, or adapt the component setup for the installed library version.
-6. Once the missing files and dependencies are present, from the project directory run:
+These dependencies are taken from the uploaded component configuration; only the obsolete nested include directory was removed.
 
-       idf.py set-target esp32s3
-       idf.py build
-       idf.py -p COMx flash monitor
+## Build and flash
 
-   Replace `COMx` with your actual device port (for example, `COM5` on Windows). Do not expect `idf.py build` to work using **this snapshot alone**.
+1. Install and activate the [Espressif ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/get-started/index.html) environment. The original notes specify **ESP-IDF 6.0.2**, but the GitHub snapshot has not been compile-tested against it.
+2. Clone or download the project, then open a terminal in `Sperm-Run-Arcade`.
+3. Install a **LovyanGFX ESP-IDF component** compatible with your installed IDF version. The original setup expects the component at `components/LovyanGFX/`; consult the [LovyanGFX upstream repository](https://github.com/lovyan03/LovyanGFX) for current component setup. Check that its registered component name is `LovyanGFX` to match the CMake dependency.
+4. Check your specific display module power, backlight and pin wiring before connecting it.
+5. Build:
 
-> **Flashing warning:** This is standalone firmware. Flashing it to a board running any other application replaces that currently installed application. Keep a backup of any firmware/configuration you intend to restore later.
+   ```bash
+   idf.py set-target esp32s3
+   idf.py build
+   ```
 
-## Troubleshooting / checkpoints
+6. Flash and monitor:
 
-| Problem | What to check |
+   ```bash
+   idf.py -p COMx flash monitor
+   ```
+
+   Replace `COMx` with the actual serial port (for example `COM5` on Windows, or the appropriate `/dev/tty*` device on Linux).
+
+> **Firmware warning:** Flashing a new game image to an ESP32-S3 replaces its existing application firmware. Make backups of anything you need to restore later.
+
+## Source map and tuning
+
+| Code symbol | Default | What it controls |
+| --- | --- | --- |
+| `W` / `H` | 320 / 240 | Landscape game coordinate system |
+| `PLAYER_X` / `PLAYER_R` | 72 / 8 | Player horizontal position / collision radius |
+| `PIPE_W` / `GAP_H` | 25 / 88 | Obstacle width / vertical opening |
+| `HUD_H` / `FLOOR_Y` | 25 / 228 | Top HUD and lower play boundary |
+| `lives` | 3 at game reset | Lives per attempt |
+| `speed` | 105 base; 170 while boosting | Obstacle movement speed |
+| `newGap()` | 76–165 | Randomized obstacle opening centre |
+| `vTaskDelay(...)` | 20 ms | Nominal main-loop sleep (not a guaranteed 50 FPS) |
+| `gfx.setRotation(1)` | Landscape | TFT orientation |
+
+To customize gameplay, adjust these values in `main/main.cpp` and the actual pin/SPI settings in `main/LGFX_ESP32S3.h`. Make sure any new obstacle dimensions and player positions remain inside the screen boundaries.
+
+## Known limitations and possible modifications
+
+- **Persistent best score:** Save `best` in ESP32 NVS, with an option to clear the record.
+- **Better input handling:** Add switch debouncing, key remapping, and more intuitive button feedback.
+- **More varied obstacles:** Different openings, shapes, patterns or stage designs.
+- **BOOST redesign:** Energy meter, limited boost duration, cooldown, or obstacle slow-down instead of the current speed-up.
+- **Improved graphics:** Sprites, animations, a dedicated background buffer, smoother rendering and optimized dirty regions.
+- **Sound effects:** Integrate an optional speaker / I2S amplifier with appropriately assigned GPIOs.
+- **Menu upgrades:** Settings, difficulty selection, restart confirmation, and better accessibility.
+- **Wi-Fi extras:** Optional leaderboard, score sharing, or OTA updates.
+- **Reproducibility:** Add tested ESP-IDF/LovyanGFX versions, actual board model, wiring photos, screenshots, and a successful build log.
+
+## Troubleshooting
+
+| Symptom | Check |
 | --- | --- |
-| Build cannot find `main.cpp` | The gameplay source `main/main.cpp` has not been uploaded |
-| Build cannot find `LovyanGFX.hpp` | Install/configure the LovyanGFX ESP-IDF component |
-| Display blank / wrong colors | Display power, backlight, wiring, reset pin, panel compatibility, `invert` and `rgb_order` settings |
-| Display shows shifted picture | Panel variant, resolution and offsets in `LGFX_ESP32S3.h` |
-| Upload/boot problem | USB/serial port, boot mode, strap pins, especially the GPIO46 RESET connection |
-| Buttons unresponsive | Confirm button-to-GND wiring, GPIO availability, pull-ups, and later firmware mappings |
+| `LovyanGFX` component missing | Install/configure the required ESP-IDF component and confirm its component name |
+| Display blank | TFT supply, backlight, ground, SPI wiring, reset, rotation and module compatibility |
+| Boot or flashing failure | USB port and boot configuration, including possible GPIO46 reset/strapping conflict |
+| Buttons don't respond | Active-low wiring to GND, internal pull-ups, and board GPIO availability |
+| Colours/offset look wrong | `rgb_order`, `invert`, ST7789 variant, and panel config in the header |
+| High score disappears after reboot | Expected: `best` is RAM-only in this source version |
 
-## Possible improvements / modifications
+## Project status
 
-These are **future ideas, not verified current features**:
+- ✅ **Complete user-supplied game source uploaded:** `main/main.cpp`
+- ✅ **Standalone custom TFT header:** `main/LGFX_ESP32S3.h`
+- ✅ **Root and main ESP-IDF CMake configuration**
+- ✅ **Gameplay documentation and verified source-derived GPIO assignments**
+- ⚠️ **External LovyanGFX component must be installed separately**
+- ⚠️ **No successful compilation, flash, or physical device test has been performed as part of this upload**
 
-- Improve animation smoothness, sprite work, UI layout and transitions.
-- Add collision effects, obstacles, difficulty stages and adjustable speed.
-- Define more distinctive BOOST mechanics, power-ups and cooldown indicators.
-- Add a high-score screen with persistent storage using ESP32 NVS.
-- Add audio feedback or music using an available speaker/audio interface.
-- Make the game menu-driven, with start/restart, options and pause/resume screens.
-- Implement configurable GPIO mapping and proper software debouncing.
-- Support alternative ST7789 panels or an alternate ESP32-S3 board.
-- Add wiring photos, a schematic, screenshots and a gameplay video.
-- Experiment with Wi-Fi leaderboard/synchronization as an optional extension.
-
-## Current state and provenance
-
-- **Uploaded from user-supplied files:** root `CMakeLists.txt`, `LGFX_ESP32S3.h` and the initial `README.txt`. The header now lives directly in this game's own `main/` directory; the local component registration file was added for a simpler project layout.
-- **Reconstructed here:** human-readable hardware documentation, replayable setup steps, local `main/CMakeLists.txt` component registration, risks and suggested extensions.
-- **Missing / not tested:** `main.cpp`, LovyanGFX dependency, successful compilation, flashing and hardware operation.
-
-Once the original gameplay files are available, this README can be expanded to document *actual* gameplay rules, special mechanics, and screenshots instead of inferred labels.
-
----
-*An experimental ESP32 hobby project, archived so the hardware and code can be rebuilt and improved later.*
+*Personal ESP32-S3 hobby project — preserved to make future remakes and improvements easier.*

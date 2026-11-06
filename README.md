@@ -23,7 +23,7 @@ This repository contains both small experiments and practical projects developed
 
 ### 🎮 Arcade & TFT Display Games
 
-- **[Sperm Run Arcade](Sperm-Run-Arcade/)** — an ESP32-S3/ST7789 button-controlled arcade game project using LovyanGFX and ESP-IDF. The display configuration, button wiring, and rebuild notes are documented. **Gameplay source code is pending upload.**
+- **[Sperm Run Arcade](Sperm-Run-Arcade/)** — an ESP32-S3/ST7789 button-controlled arcade game project using LovyanGFX and ESP-IDF. Includes the game source, ESP-IDF component setup, standalone TFT header, hardware pin map and gameplay guide. Requires the LovyanGFX ESP-IDF component to build.
 
 ### 💡 LED & GPIO
 
