@@ -3,7 +3,7 @@
 An experimental **ESP32-S3 arcade game** designed for a physical TFT display and push-buttons. This is a standalone hobby embedded project with its own local display configuration.
 
 > [!IMPORTANT]
-> **Documentation / partial-source snapshot.** The files supplied for this upload contain the ESP-IDF root `CMakeLists.txt`, the LovyanGFX board configuration, and original setup notes. **They do not include the gameplay implementation (`main/main.cpp`), or the LovyanGFX component source. This folder is not yet a complete, buildable game.** The README describes the recovered configuration faithfully, rather than inventing missing code or gameplay behavior.
+> **Documentation / partial-source snapshot.** The files supplied for this upload contain the ESP-IDF root `CMakeLists.txt`, the LovyanGFX board configuration, and original setup notes. **They do not include the gameplay implementation (`main/main.cpp`) or the LovyanGFX component source. This folder is not yet a complete, buildable game.** The README describes the recovered configuration faithfully, rather than inventing missing code or gameplay behavior.
 
 ## Hardware at a glance
 
@@ -123,7 +123,7 @@ Do **not** use an include path pointing through a different project directory. T
 1. Use an **ESP32-S3** and an **ST7789 240 × 320 TFT** compatible with the saved LovyanGFX settings. Verify the exact board and display module before wiring.
 2. Follow the **GPIO tables and wiring sketch** above. Connect each button between its GPIO and GND.
 3. Install and activate an ESP-IDF environment. The original project notes specify **ESP-IDF 6.0.2**; compatibility has not been independently build-tested.
-4. Restore the missing game source at `main/main.cpp` and the corresponding `main/CMakeLists.txt`. The display header is already in this game's own `main/LGFX_ESP32S3.h`, and the ESP-IDF component declaration is in `main/CMakeLists.txt`. In the restored `main.cpp`, include it with `#include "LGFX_ESP32S3.h"`, not via a folder from another project.
+4. Restore the missing game source at `main/main.cpp`. The display header is already in this game's own `main/LGFX_ESP32S3.h`, and ESP-IDF component registration is already provided in `main/CMakeLists.txt`. In the restored `main.cpp`, include the header with `#include "LGFX_ESP32S3.h"`.
 5. Install the correct [LovyanGFX](https://github.com/lovyan03/LovyanGFX) ESP-IDF component in `components/LovyanGFX/` as directed in the original notes, or adapt the component setup for the installed library version.
 6. Once the missing files and dependencies are present, from the project directory run:
 
@@ -139,7 +139,7 @@ Do **not** use an include path pointing through a different project directory. T
 
 | Problem | What to check |
 | --- | --- |
-| Build cannot find `main.cpp` or no main component | The gameplay source `main/main.cpp` has not been uploaded |
+| Build cannot find `main.cpp` | The gameplay source `main/main.cpp` has not been uploaded |
 | Build cannot find `LovyanGFX.hpp` | Install/configure the LovyanGFX ESP-IDF component |
 | Display blank / wrong colors | Display power, backlight, wiring, reset pin, panel compatibility, `invert` and `rgb_order` settings |
 | Display shows shifted picture | Panel variant, resolution and offsets in `LGFX_ESP32S3.h` |
