@@ -1,9 +1,9 @@
 # Sperm Run Arcade — ESP32-S3 + ST7789 TFT
 
-An experimental **ESP32-S3 arcade game** designed for a physical TFT display and push-buttons. This is a small hobby embedded project separate from my ESP32-S3 AI Companion firmware.
+An experimental **ESP32-S3 arcade game** designed for a physical TFT display and push-buttons. This is a standalone hobby embedded project with its own local display configuration.
 
 > [!IMPORTANT]
-> **Documentation / partial-source snapshot.** The files supplied for this upload contain the ESP-IDF root `CMakeLists.txt`, the LovyanGFX board configuration, and original setup notes. **They do not include the gameplay implementation (`main/main.cpp`), the `main/CMakeLists.txt` build component file, or the LovyanGFX component source. This folder is not yet a complete, buildable game.** The README describes the recovered configuration faithfully, rather than inventing missing code or gameplay behavior.
+> **Documentation / partial-source snapshot.** The files supplied for this upload contain the ESP-IDF root `CMakeLists.txt`, the LovyanGFX board configuration, and original setup notes. **They do not include the gameplay implementation (`main/main.cpp`), or the LovyanGFX component source. This folder is not yet a complete, buildable game.** The README describes the recovered configuration faithfully, rather than inventing missing code or gameplay behavior.
 
 ## Hardware at a glance
 
@@ -17,7 +17,7 @@ An experimental **ESP32-S3 arcade game** designed for a physical TFT display and
 | Configured SPI clock | 40 MHz write / 16 MHz read |
 | Input method | Five push-buttons, each connecting a GPIO to GND |
 
-The ST7789 panel and SPI settings above come directly from `main/boards/my-ai-companion/LGFX_ESP32S3.h`. The control assignments come from the supplied `README.txt`, **not** from source-code inspection.
+The ST7789 panel and SPI settings above come directly from `main/LGFX_ESP32S3.h`. The control assignments come from the supplied `README.txt`, **not** from source-code inspection.
 
 ## GPIO / pin configuration
 
@@ -71,7 +71,7 @@ Every button is wired **between the named GPIO and GND**, not to 3.3 V. This is 
     GPIO14 ----[ PAUSE button ]---- GND
     GPIO18 ----[ MENU button  ]---- GND
 
-The original notes reserve **GPIO4/5/6** for microphone-related connections and **GPIO15/16/17** for speaker-related connections on the earlier AI-companion board setup. Avoid reusing them unless you first confirm that your particular hardware has no conflicting devices.
+The earlier hardware configuration reserved **GPIO4/5/6** for microphone wiring and **GPIO15/16/17** for speaker wiring. Those pins are not used by this game's documented display or buttons; check for conflicts before assigning them to other devices.
 
 **Electrical checks:** Share ground between the ESP32-S3 and TFT; verify the TFT module's power and logic levels, any onboard regulator/level shifters, the backlight connection, and the actual exposed GPIO pins. Do not connect GPIO inputs directly to 5 V.
 
@@ -80,8 +80,8 @@ The original notes reserve **GPIO4/5/6** for microphone-related connections and 
 - **Dedicated physical controls:** five labelled controls including separate BOOST, PAUSE and MENU inputs in the *wiring plan*. Their exact behavior must be confirmed against the missing game code.
 - **Colour TFT graphics stack:** an ST7789 display driven through the LovyanGFX abstraction rather than a text-only display.
 - **High-speed configured SPI bus:** `SPI2_HOST` with 40 MHz write clock, SPI mode 0, and DMA configured as `SPI_DMA_CH_AUTO`.
-- **Standalone ESP-IDF firmware layout:** a separate project intended to replace the currently flashed firmware, rather than a patch to the AI-companion project.
-- **Reusable display definition:** a board-specific `LGFX` class concentrates display pin, SPI bus, and 240 × 320 panel settings in one file.
+- **Standalone ESP-IDF firmware layout:** a dedicated project that can be flashed independently of other firmware.
+- **Self-contained display definition:** `main/LGFX_ESP32S3.h` contains the `LGFX` class and all saved display pin, SPI bus, and 240 × 320 panel settings; no header is fetched from any other personal project.
 
 No claims are made here about levels, obstacles, scores, graphics effects, collision logic, or saved high scores: **those details cannot be verified without `main.cpp`.**
 
@@ -93,24 +93,37 @@ No claims are made here about levels, obstacles, scores, graphics effects, colli
     ├── CMakeLists.txt                    # Original ESP-IDF project entry
     ├── .gitignore
     └── main/
-        └── boards/
-            └── my-ai-companion/
-                └── LGFX_ESP32S3.h       # Original LovyanGFX ST7789 pin setup
+        ├── CMakeLists.txt                # ESP-IDF main-component declaration
+        └── LGFX_ESP32S3.h               # Standalone LovyanGFX ST7789 pin setup
 
 **Still needed for a functioning clone:**
 
 - `main/main.cpp` — the actual game loop, input handling, rendering and gameplay;
-- `main/CMakeLists.txt` — ESP-IDF component registration for the game;
 - `components/LovyanGFX/` or an equivalent correctly configured ESP-IDF LovyanGFX dependency.
 
 Some platforms or versions might need additional ESP-IDF configuration or component metadata; that cannot be determined from the three supplied files.
+
+## Standalone display-header usage
+
+This project keeps its **own copy** of the TFT configuration at `main/LGFX_ESP32S3.h`, beside the planned game source file. It has no source-level or folder dependency on any other personal firmware project.
+
+When restoring `main/main.cpp`, the include should be:
+
+```cpp
+#include "LGFX_ESP32S3.h"
+
+// Example display instance declaration (integrate with your actual game code):
+LGFX tft;
+```
+
+Do **not** use an include path pointing through a different project directory. The old nested directory is deleted from the current repository tree. If your own local copy of `main.cpp` still uses that old include, change that line **in the game's source only** before compiling. This GitHub update cannot modify the missing local game source.
 
 ## How to recreate the original project
 
 1. Use an **ESP32-S3** and an **ST7789 240 × 320 TFT** compatible with the saved LovyanGFX settings. Verify the exact board and display module before wiring.
 2. Follow the **GPIO tables and wiring sketch** above. Connect each button between its GPIO and GND.
 3. Install and activate an ESP-IDF environment. The original project notes specify **ESP-IDF 6.0.2**; compatibility has not been independently build-tested.
-4. Restore the missing game source at `main/main.cpp` and the corresponding `main/CMakeLists.txt`. The original notes expect the board header at `main/boards/my-ai-companion/LGFX_ESP32S3.h`, which is included here.
+4. Restore the missing game source at `main/main.cpp` and the corresponding `main/CMakeLists.txt`. The display header is already in this game's own `main/LGFX_ESP32S3.h`, and the ESP-IDF component declaration is in `main/CMakeLists.txt`. In the restored `main.cpp`, include it with `#include "LGFX_ESP32S3.h"`, not via a folder from another project.
 5. Install the correct [LovyanGFX](https://github.com/lovyan03/LovyanGFX) ESP-IDF component in `components/LovyanGFX/` as directed in the original notes, or adapt the component setup for the installed library version.
 6. Once the missing files and dependencies are present, from the project directory run:
 
@@ -120,13 +133,13 @@ Some platforms or versions might need additional ESP-IDF configuration or compon
 
    Replace `COMx` with your actual device port (for example, `COM5` on Windows). Do not expect `idf.py build` to work using **this snapshot alone**.
 
-> **Flashing warning:** This is standalone firmware. Flashing it to a board that runs the ESP32-S3 AI Companion replaces the currently installed application. Keep a backup of any firmware/configuration you intend to restore later.
+> **Flashing warning:** This is standalone firmware. Flashing it to a board running any other application replaces that currently installed application. Keep a backup of any firmware/configuration you intend to restore later.
 
 ## Troubleshooting / checkpoints
 
 | Problem | What to check |
 | --- | --- |
-| Build cannot find `main.cpp` or no main component | The gameplay source and `main/CMakeLists.txt` have not been uploaded |
+| Build cannot find `main.cpp` or no main component | The gameplay source `main/main.cpp` has not been uploaded |
 | Build cannot find `LovyanGFX.hpp` | Install/configure the LovyanGFX ESP-IDF component |
 | Display blank / wrong colors | Display power, backlight, wiring, reset pin, panel compatibility, `invert` and `rgb_order` settings |
 | Display shows shifted picture | Panel variant, resolution and offsets in `LGFX_ESP32S3.h` |
@@ -150,9 +163,9 @@ These are **future ideas, not verified current features**:
 
 ## Current state and provenance
 
-- **Uploaded from user-supplied files:** `CMakeLists.txt`, `LGFX_ESP32S3.h` and `README.txt`.
-- **Reconstructed here:** human-readable hardware documentation, replayable setup steps, risks and suggested extensions.
-- **Missing / not tested:** `main.cpp`, build component file, LovyanGFX dependency, successful compilation, flashing and hardware operation.
+- **Uploaded from user-supplied files:** root `CMakeLists.txt`, `LGFX_ESP32S3.h` and the initial `README.txt`. The header now lives directly in this game's own `main/` directory; the local component registration file was added for a simpler project layout.
+- **Reconstructed here:** human-readable hardware documentation, replayable setup steps, local `main/CMakeLists.txt` component registration, risks and suggested extensions.
+- **Missing / not tested:** `main.cpp`, LovyanGFX dependency, successful compilation, flashing and hardware operation.
 
 Once the original gameplay files are available, this README can be expanded to document *actual* gameplay rules, special mechanics, and screenshots instead of inferred labels.
 

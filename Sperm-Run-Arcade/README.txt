@@ -1,12 +1,15 @@
 SPERM RUN ARCADE - STANDALONE ESP-IDF PROJECT
 
 IMPORTANT
-- This is a separate project, not a modification of the AI companion source.
+- This is a standalone game project; it does not require source files from any other personal project.
 - Flashing this project replaces the firmware currently running on the ESP32-S3.
-- The main.cpp expects the existing board header LGFX_ESP32S3.h and LovyanGFX ESP-IDF component.
-- Copy LGFX_ESP32S3.h from your existing board configuration into:
-    main/boards/my-ai-companion/LGFX_ESP32S3.h
-- Copy your LovyanGFX component directory into this project's components/LovyanGFX.
+- The restored main/main.cpp should include the game-local LGFX_ESP32S3.h and use the LovyanGFX ESP-IDF component.
+- The included game-local header is located at:
+    main/LGFX_ESP32S3.h
+- In main/main.cpp, use: #include "LGFX_ESP32S3.h"
+- Do not include the header through another project's directory.
+- Install LovyanGFX as an ESP-IDF component in components/LovyanGFX (or configure an equivalent component dependency).
+- Note: main/main.cpp and the LovyanGFX component are not in this snapshot, so it is not buildable yet.
 - Verify that the header declares class LGFX and matches the physical ST7789 wiring.
 - Build using ESP-IDF 6.0.2 from this folder: idf.py set-target esp32s3; idf.py build
 - Flash with: idf.py -p COMx flash monitor
